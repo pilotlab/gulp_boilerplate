@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title></title>
+    <link rel="stylesheet" href="styles/index.css" />
+</head>
+
+<body ng-controller="MainCtrl">
+    <svg ng-attr-height="{{graph.height}}" ng-attr-width="{{graph.width}}">
+        <circle ng-repeat="circle in circles" 
+            ng-attr-cx="{{circle.x}}" 
+            ng-attr-cy="{{circle.y}}" 
+            ng-attr-r="{{circle.r}}">
+        </circle>
+    </svg>
+    <script src="scripts/components.min.js"></script>
+    <script src="js/index.js"></script>
+</body>
+</html>

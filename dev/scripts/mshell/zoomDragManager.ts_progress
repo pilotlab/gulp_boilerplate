@@ -1,0 +1,1927 @@
+module mshell
+{
+    export class ZoomDragManager
+    {
+        /**
+        * This class requires tick() to be driven by a timer in the calling class.
+        */
+        ZoomDragManager(elemZoom: HTMLElement)
+        {
+            _elem = elemZoom;
+        }
+
+
+        /*====================================================================*
+          START: Members & Properties
+         *====================================================================*/
+        get element(): HTMLElement { return _elem; }
+        private _elem: HTMLElement;
+
+        
+        /**
+        * This value specifies how much inertia will be applied to the dragged object
+        * after it is released. A value of 0.0 will stop the object immediately, while
+        * a value of 1.0 will cause the object to continue moving indefinitely at it's 
+        * current velocity.
+        */
+        get deceleration(): number { return _deceleration; }
+        set deceleration(value: number) { _deceleration = value; }
+        private _deceleration: number = 0.85;
+    
+    
+        get isUseDeceleration(): boolean { return _bUseDeceleration; }
+        set isUseDeceleration(value: boolean) { _bUseDeceleration = value; }
+        private _bUseDeceleration: boolean = true;
+    
+    
+        /**
+        * The distance the mouse needs to move before a drag is triggered.
+        */
+        get dragTrigger(): number { return _dragTrigger; }
+        set dragTrigger(value: number) { _dragTrigger = value; }
+        private _dragTrigger: number = 10.0;
+
+    
+        private _bMouseLftBtnDn: boolean = false;
+    
+    
+        /**
+        * Have targets been set manually using the target property setters,
+        * as opposed to being set through mouse interactions.
+        * This value is reset to false once all targets have been reached.
+        */
+        get isTargetSetManually(): boolean { return _bTargetSetManually; }
+        private _bTargetSetManually: boolean = false;
+
+    
+        get isDragging(): boolean ( return _bDragging; }
+        private _bDragging: boolean = false;
+
+
+        /**
+        * This will be set to true immediately after a drag completes,
+        * and will then revert to false after the next time tick is called.
+        */
+        private _bDragDone: boolean = false; 
+        stopDragging: void () 
+        { 
+            if (_bDragging) _ptSpeed = new Point(_ptDragSpeed.x, _ptDragSpeed.y);
+            else _ptSpeed = new Point(0.0, 0.0);
+
+            _bDragging = false; 
+            _bMouseLftBtnDn = false;
+        }
+
+
+        get mouseLftBtnDnPos: Point { return _ptMouseLftBtnDn; }
+        private _ptMouseLftBtnDn: Point = new Point(0.0, 0.0);
+
+
+        get dragStartPoint: Point { return _ptDragStart; }
+        private _ptDragStart: Point = new Point(0.0, 0.0);
+
+
+        get lastMousePos: Point { return _ptLastMousePos; }
+        private _ptLastMousePos: Point = new Point(0.0, 0.0);
+
+
+        get dragSpeed: Point { return _ptDragSpeed; }
+        private _ptDragSpeed: Point = new Point(0.0, 0.0);
+        private _ptSpeed: Point = new Point(0.0, 0.0);
+
+
+        //----- Zoom variables.
+        /**
+        * A multiplier that affects the zoom speed of the canvas. Higher values are faster. 0 is instant.
+        */
+        get speed: number { return _speed; }
+        set speed(value: number) { _speed = value; }
+        private _speed: number = 0.2; 
+
+
+        /**
+        * A multiplier that temporarily affects the zoom speed of the canvas. Resets after zoom targets are reached
+        */
+        get speedFactor: bumber { return _speedFactor; }
+        set speedFactor(value: number) { _speedFactor = value; }
+        private _speedFactor: number = 1.0;
+
+
+        get widthOriginal: number { return _widthOriginal; }
+        private _widthOriginal: number = 100;
+
+
+        get heightOriginal: number { return _heightOriginal; }
+        private _heightOriginal: number = 100;
+
+
+        get zoomType: ZoomType { return _zoomType; }
+        set zoomType(value: ZoomType)
+        {
+            _zoomType = value;
+        }
+        private _zoomType: ZoomType = ZoomType.SCALE;
+
+
+        get targetScale: number { return _targetScale; }
+        set targetScale(value: number)
+        {
+            _startScale = _elem.scale();
+            _targetScale = value;
+
+            _bTargetScaleReached = false;
+            _bTargetSetManually = true;
+            _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        private _bTargetScaleReached: boolean = true;
+        private _targetScale: number = 1.0;
+        private _startScale: number = 1.0;
+
+        number get targetWidth { return _targetWidth;
+        set targetWidth(value: number)
+        {
+        _targetWidth = value;
+
+        _bTargetWidthReached = false;
+        _bTargetSetManually = true;
+        _targetWidthChangedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        bool _bTargetWidthReached = true;
+        number _targetWidth = 100;
+
+        number get targetHeight { return _targetHeight;
+        set targetHeight(value: number)
+        {
+        _targetHeight = value;
+
+        _bTargetHeightReached = false;
+        _bTargetSetManually = true;
+        _targetHeightChangedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        bool _bTargetHeightReached = true;
+        number _targetHeight = 100;
+
+        number get targetStretchWidthFactor { return _targetStretchWidthFactor;
+        set targetStretchWidthFactor(value: number)
+        {
+        _startStretchWidthFactor = _currentStretchWidthFactor;
+        _targetStretchWidthFactor = value;
+        _bTargetSetManually = true;
+        }
+        number _targetStretchWidthFactor = 1.0;
+        number _startStretchWidthFactor = 1.0;
+        number _currentStretchWidthFactor = 1.0;
+
+        number get targetStretchHeightFactor { return _targetStretchHeightFactor;
+        set targetStretchHeightFactor(value: number)
+        {
+        _startStretchHeightFactor = _currentStretchHeightFactor;
+        _targetStretchHeightFactor = value;
+        _bTargetSetManually = true;
+        }
+        number _targetStretchHeightFactor = 1.0;
+        number _startStretchHeightFactor = 1.0;
+        number _currentStretchHeightFactor = 1.0;
+
+        number get targetX { return _targetX;
+        set targetX(value: number)
+        {
+        _targetX = value;//this.constrainX(value);
+        _bTargetXReached = false;
+        _bTargetSetManually = true;
+        _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        number _targetX = 0.0;
+        bool _bTargetXReached = true;
+
+        number get targetY { return _targetY;
+        set targetY(value: number)
+        {
+        _targetY = value;//this.constrainY(value);
+        _bTargetYReached = false;
+        _bTargetSetManually = true;
+        _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        number _targetY = 0.0;
+        bool _bTargetYReached = true;
+
+        number get targetRotationX { return _targetRotationX;
+        set targetRotationX(value: number)
+        {
+        _targetRotationX = value;
+        _bTargetSetManually = true;
+        }
+        number _targetRotationX = 0.0;
+
+        number get targetRotationY { return _targetRotationY;
+        set targetRotationY(value: number)
+        {
+        _targetRotationY = value;
+        _bTargetSetManually = true;
+        }
+        number _targetRotationY = 0.0;
+
+        number get targetRotationZ { return _targetRotationZ;
+        set targetRotationZ(value: number)
+        {
+        _targetRotationZ = value;
+        _bTargetSetManually = true;
+        }
+        number _targetRotationZ = 0.0;
+
+        bool get isTargetsReached { return _bTargetsReached;
+        bool _bTargetsReached = true;
+
+        /// <summary>
+        /// When the x, or y values of the element fall within this range of their targets, they will immediately hit the targets.
+        /// </summary>
+        number get targetProximityPosition { return _targetProximityPosition;
+        set targetProximityPosition(value: number) { _targetProximityPosition = value; }
+        number _targetProximityPosition = 1.0;
+        /// <summary>
+        /// When the scale of the element falls within this range of the TargetScale, it will immediately hit the target.
+        /// </summary>
+        number get targetProximityScale { return _targetProximityScale;
+        set targetProximityScale(value: number) { _targetProximityScale = value; }
+        number _targetProximityScale = 0.0001;
+
+        Point _ptTranslationPrev = new Point(0.0, 0.0);
+        number _scalePrev = 1.0;
+        number _wheelScalePrev = 1.0;
+
+        bool get isConstrained { return _bConstrained;
+        set isConstrained(bool value) { _bConstrained = value; }
+        bool _bConstrained = true; 
+
+        number get dragConstraintXMin { return _dragConstraintXMin;
+        set dragConstraintXMin(value: number) { _dragConstraintXMin = value; }
+        number _dragConstraintXMin = -1000000000.0;
+        number get dragConstraintXMax { return _dragConstraintXMax;
+        set dragConstraintXMax(value: number) { _dragConstraintXMax = value; }
+        number _dragConstraintXMax = 1000000000.0;
+
+        number get dragConstraintYMin { return _dragConstraintYMin;
+        set dragConstraintYMin(value: number) { _dragConstraintYMin = value; }
+        number _dragConstraintYMin = -1000000000.0;     
+        number get dragConstraintYMax { return _dragConstraintYMax;
+        set dragConstraintYMax(value: number) { _dragConstraintYMax = value; }
+        number _dragConstraintYMax = 1000000000.0;
+
+        number get scaleConstraintMin { return _scaleConstraintMin;
+        set scaleConstraintMin(value: number) { _scaleConstraintMin = value; }
+        number _scaleConstraintMin = 0.01;
+        number get scaleConstraintMax { return _scaleConstraintMax;
+        set scaleConstraintMax(value: number) { _scaleConstraintMax = value; }
+        number _scaleConstraintMax = 1000000000.0;
+
+        bool get isElasticX { return _bElasticX;
+        set isElasticX(bool value) { _bElasticX = value; } 
+        bool _bElasticX = false;
+        bool get isElasticY { return _bElasticY;
+        set isElasticY(bool value) { _bElasticY = value; } 
+        bool _bElasticY = false;
+
+        bool get isTiltOnXAxis { return _bTiltOnXAxis;
+        set isTiltOnXAxis(bool value) { _bTiltOnXAxis = value; } 
+        bool _bTiltOnXAxis = false;
+        bool get isTiltOnYAxis { return _bTiltOnYAxis;
+        set isTiltOnYAxis(bool value) { _bTiltOnYAxis = value; } 
+        bool _bTiltOnYAxis = false;
+
+        bool get isEnabled { return _bEnabled;
+        set isEnabled(bool value) { _bEnabled = value; } 
+        bool _bEnabled = true;
+
+        ElasticPoints get elastic { return _elastic;
+        ElasticPoints _elastic = new ElasticPoints();
+
+
+        /*====================================================================*
+          START: Events
+         *====================================================================*/
+        Stream<ZoomDragEventArgs> get targetsReached { return _targetsReachedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _targetsReachedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get targetScaleChanged { return _targetScaleChangedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _targetScaleChangedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get targetWidthChanged { return _targetWidthChangedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _targetWidthChangedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get targetHeightChanged { return _targetHeightChangedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _targetHeightChangedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get resized { return _resizedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _resizedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get targetXChanged { return _targetXChangedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _targetXChangedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get targetYChanged { return _targetYChangedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _targetYChangedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get dragged { return _draggedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _draggedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get dragDone { return _dragDoneEvent.stream;
+      final EventStream<ZoomDragEventArgs> _dragDoneEvent = new EventStream<ZoomDragEventArgs>();  
+
+      /// Only fires when the user manually zooms with the mouse wheel.
+      Stream<ZoomDragEventArgs> get zoomed { return _zoomedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _zoomedEvent = new EventStream<ZoomDragEventArgs>();  
+
+      Stream<ZoomDragEventArgs> get ticked { return _tickedEvent.stream;
+      final EventStream<ZoomDragEventArgs> _tickedEvent = new EventStream<ZoomDragEventArgs>();  
+
+
+      /*====================================================================*
+        START: Event Handler Methods
+       *====================================================================*/
+      void _elem_propertyChanged(PropertyChangedEventArgs args)
+      {
+        switch (args.propertyName)
+        {
+          case "x":
+            _targetX = this.constrainX(_elem.x);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "y":
+            _targetY = this.constrainY(_elem.y);
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "left":
+            _targetX = this.constrainX(_elem.x);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "top":
+            _targetY = this.constrainY(_elem.y);
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "leftActual":
+            _targetX = this.constrainX(args.value);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "topActual":
+            _targetY = this.constrainY(args.value);
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "scale":
+            _targetScale = this.constrainScale(args.value);
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+
+            _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "scaleWidth":
+            _targetScale = this.constrainScale(args.value);
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+            _targetScale = this.constrainScale(args.value);
+
+            _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "scaleHeight":
+            _targetScale = this.constrainScale(args.value);
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+
+            _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "width":
+            number currentScale = this.constrainScale(_elem.scaleWidth);
+            if (_targetScale != currentScale)
+            {
+              _targetScale = currentScale;
+              _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            }
+
+            _widthOriginal = _elem.width; 
+            _targetWidth = _elem.width;
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetWidthChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "height":
+            number currentScale = this.constrainScale(_elem.scaleWidth);
+            if (_targetScale != currentScale)
+            {
+              _targetScale = currentScale;
+              _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            }
+
+            _heightOriginal = _elem.height;
+            _targetHeight = _elem.height;
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetHeightChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "widthActual":
+            number currentScale = this.constrainScale(_elem.scaleWidth);
+            if (_targetScale != currentScale)
+            {
+              _targetScale = currentScale;
+              _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            }
+
+            _widthOriginal = _elem.width;
+            _targetWidth = _elem.width;
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetWidthChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "heightActual":
+            number currentScale = this.constrainScale(_elem.scaleWidth);
+            if (_targetScale != currentScale)
+            {
+              _targetScale = currentScale;
+              _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            }
+
+            _heightOriginal = _elem.height;
+            _targetHeight = _elem.height;
+            _targetX = this.constrainX(_elem.x);
+            _targetY = this.constrainY(_elem.y);
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetHeightChangedEvent.signal(new ZoomDragEventArgs(this));
+            break;
+          case "rotation":
+            _targetRotationZ = args.value;
+            break;
+          case "rotationZ":
+            _targetRotationZ = args.value;
+            break;
+          case "rotationX":
+            _targetRotationX = args.value;
+            break;
+          case "rotationY":
+            _targetRotationY = args.value;
+            break;
+        }
+      }
+
+
+      void tick()
+      {
+        _elastic.tick();
+
+        if (_bDragging) _ticksSinceLastMouseMove++;
+
+        if (_bTiltOnXAxis || _bTiltOnYAxis)
+        {
+          this._updateTiltSpeed();
+          this._applyTilt();
+        }
+
+        if (!_bEnabled || _bMouseLftBtnDn) return;
+
+        bool bTargetsReached = true;
+
+        if (!_bTargetScaleReached) 
+        {
+          bTargetsReached = false;
+          _updateScale(); 
+        }   
+
+        if (_currentStretchWidthFactor != _targetStretchWidthFactor) 
+        {
+          bTargetsReached = false;
+          _updateStretchWidth(); 
+        }
+
+        if (_currentStretchHeightFactor != _targetStretchHeightFactor) 
+        {
+          bTargetsReached = false;
+          _updateStretchHeight(); 
+        }
+
+        if (!_bDragging)
+        {
+          //----- _updateX and _updateY only take action if either we're decelerating after a drag,
+          //----- or one of the position targets have not yet been reached. If we're decelerating after a drag,
+          //----- constrainX and/or constrainY methods will be called, which will enable _elastic, if needed.
+          _updateX();
+          _updateY();
+
+          //----- Check whether position targets have been reached.
+          if (!_bTargetXReached) bTargetsReached = false;
+          if (!_bTargetYReached) bTargetsReached = false;
+          //if (!_bTargetXReached) print("zoom _targetX: " + _targetX.toString() + ", actual: " + _elem.x.toString());
+          //if (!bTargetsReached) print("zoom _targetY: " + _targetY.toString() + ", actual: " + _elem.y.toString());
+
+          //----- START: Elastic
+          //----- Check constraints and apply elastic, if needed
+          if (_elastic.isEnabled)
+          {
+            //----- X
+            if (_elem.x < _dragConstraintXMin || _elem.x > _dragConstraintXMax) 
+            {
+              _setX(_elastic.chaser.x);
+            }
+
+            //----- Y 
+            if (_elem.y < _dragConstraintYMin || _elem.y > _dragConstraintYMax) 
+            {
+              _setY(_elastic.chaser.y);
+            }
+
+            //----- If we're not outside constraints, _elastic doesn't need to be running.
+            if (_elastic.leader.x == _elastic.chaser.x && _elastic.leader.y == _elastic.chaser.y) 
+            {
+              _elastic.isEnabled = false;
+            }
+          }
+          //----- END: Elastic
+        }
+
+        //----- We must be decelerating after a drag, so fire a dragged Event.
+        if (_bSignalDraggedEvent)
+        {
+          _bSignalDraggedEvent = false;
+          _draggedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        else if (_bSignalDragDoneEvent)
+        {//----- We're done dragging and decelerating.
+          _bSignalDragDoneEvent = false;
+          _dragDoneEvent.signal(new ZoomDragEventArgs(this));
+        }
+
+        if (_elem.rotationX != _targetRotationX) 
+        {
+          if (bTargetsReached) bTargetsReached = false;
+          _updateRotationX();
+        }
+        if (_elem.rotationY != _targetRotationY) 
+        {
+          if (bTargetsReached) bTargetsReached = false;
+          _updateRotationY();
+        }
+        if (_elem.rotationZ != _targetRotationZ) 
+        {
+          if (bTargetsReached) bTargetsReached = false;
+          _updateRotationZ();
+        }
+
+        bool bResized = false;
+        if (!_bTargetWidthReached) 
+        {
+          if (bTargetsReached) bTargetsReached = false;
+          _updateWidth(); 
+          bResized = true;
+        } 
+
+        if (!_bTargetHeightReached) 
+        {
+          if (bTargetsReached) bTargetsReached = false;
+          _updateHeight(); 
+          bResized = true;
+        } 
+
+        if (bResized) _resizedEvent.signal(new ZoomDragEventArgs(this));
+
+        if (!_bTargetsReached) _tickedEvent.signal(new ZoomDragEventArgs(this));
+        if (!bTargetsReached && _bTargetsReached) _bTargetsReached = false;
+        else if (bTargetsReached && !_bTargetsReached)
+        {
+          //----- All the targets have been reached
+          _speedFactor = 1.0; // Reset the speed factor
+          _bTargetsReached = true;
+          _bTargetSetManually = false; // Reset this, in case it has been set to true.
+          _setX(constrainX(_targetX));
+          _setY(constrainY(_targetY));
+          _targetsReachedEvent.signal(new ZoomDragEventArgs(this)); // Let any listeners know we've reached all targets.
+        }
+
+        //----- _bDragDone gets set to true immediately after a drag completes, 
+        //----- and we need to revert it back to false the next time tick is called.
+        if (_bDragDone) _bDragDone = false;
+      }
+
+
+      void _setX(num left)
+      {
+        _elem.setXWithoutInvalidation(left);
+        _elem.invalidate();
+      }
+
+
+      void _setY(num top)
+      {
+        _elem.setYWithoutInvalidation(top);
+        _elem.invalidate();
+      }
+
+
+      void _setWidth(num width)
+      {
+        _elem.setWidthWithoutInvalidation(width);
+        _elem.invalidate();
+      }
+
+
+      void _setHeight(num height)
+      {
+        _elem.setHeightWithoutInvalidation(height);
+        _elem.invalidate();
+      }
+
+
+      void _setScale(num scale)
+      {
+        _elem.setScaleWidthWithoutInvalidation(scale);
+        _elem.setScaleHeightWithoutInvalidation(scale);
+        _elem.invalidate();
+      }
+
+
+      void _setRotationX(num rotation)
+      {
+        _elem.setRotationXWithoutInvalidation(rotation);
+        _elem.invalidate();
+      }
+
+
+      void _setRotationY(num rotation)
+      {
+        _elem.setRotationYWithoutInvalidation(rotation);
+        _elem.invalidate();
+      }
+
+
+      void _setRotationZ(num rotation)
+      {
+        _elem.setRotationZWithoutInvalidation(rotation);
+        _elem.invalidate();
+      }
+
+      number _parentScaleAbs = 1.0;
+      bool _bRegisterMouseUp = true;
+      void mouseLeftButtonDown(MouseEventArgs e)
+      {
+        if (!_bEnabled) return;
+
+        _bMouseLftBtnDn = true;
+
+        //----- If the canvas is moving, just stop it and don't 
+        //----- register a MouseUp on any child controls.
+        number speedBuffer = 10.0;
+        if (_ptSpeed.x.abs() > speedBuffer && _elem.x > _dragConstraintXMin && _elem.x < _dragConstraintXMax) 
+        {
+          _ptSpeed.x = 0.0;
+          _ptDragSpeed.x = 0.0;
+          _bRegisterMouseUp = false;
+        }
+
+        if (_ptSpeed.y.abs() > speedBuffer && _elem.y > _dragConstraintYMin && _elem.y < _dragConstraintYMax) 
+        {
+          _ptSpeed.y = 0.0;
+          _ptDragSpeed.y = 0.0;
+          _bRegisterMouseUp = false;
+        }
+
+        //----- Stop any scaling currently in effect.
+        if ((_targetScale - _elem.scaleWidth).abs() > 0.0001)
+        {
+          _targetScale = _elem.scaleWidth;
+          _targetX = _elem.x;
+          _targetY = _elem.y;
+          _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+          _bRegisterMouseUp = false;
+        }
+
+        //----- Make sure we maintain the relative offset relationship between the drag position
+        //----- and the tilt chaser position, when we start a drag in a new location, so that
+        //----- we don't get jerky tilt movements.
+        if (_bTiltOnXAxis || _bTiltOnYAxis) _startDragPositionUpdating(e.positionRoot.x, e.positionRoot.y);
+
+        _ptMouseLftBtnDn = new Point(e.positionRoot.x, e.positionRoot.y);
+        if (_elem != null) _ptDragStart = new Point(_elem.x, _elem.y);
+        _ptLastMousePos = new Point(_ptMouseLftBtnDn.x, _ptMouseLftBtnDn.y);
+      }
+
+
+      void mouseLeftButtonUp(MouseEventArgs e)
+      {   
+        if (!_bEnabled) return;
+
+        bool bContinueDeceleration = true;
+        if (_bDragging && _ticksSinceLastMouseMove > 1) 
+        {
+          bContinueDeceleration = false;
+        }
+
+        if (_bDragging || !_bRegisterMouseUp)
+        {
+          e.isHandled = true;
+          if (bContinueDeceleration) _ptSpeed = new Point(_ptDragSpeed.x, _ptDragSpeed.y);
+        }
+        else 
+        {
+          _ptSpeed = new Point(0.0, 0.0);
+        }
+
+        _bMouseLftBtnDn = false;
+        if (_bDragging) _bDragDone = true;
+        _bDragging = false;
+        _bRegisterMouseUp = true;
+      }
+
+
+      //----- Use this to turn off deceleration if the user stop moving the mouse
+      //----- for a moment after dragging, before they release the left mouse button.
+      int _ticksSinceLastMouseMove = 0;
+      void mouseMove(MouseEventArgs e, [num dragMultiplier])
+      {
+        if (!_bEnabled) return;
+
+        _ticksSinceLastMouseMove = 0;
+
+        if (dragMultiplier == null) dragMultiplier = 1.0;
+
+        //----- If we're dragging and the user hasn't stopped moving the mouse, we need to update the drag speed.
+        if (_bDragging || _ticksSinceLastMouseMove > 1)
+        {
+          _ptDragSpeed.x = e.positionRoot.x - _ptLastMousePos.x;
+          _ptDragSpeed.y = e.positionRoot.y - _ptLastMousePos.y;
+
+          //----- If the _elem.parent is scaled, we need to adjust the drag speed
+          //----- so that the deceleration is consistent across scales.
+          if (_elem.parent != null)
+          {
+            _ptDragSpeed.x /= _elem.parent.scale;
+            _ptDragSpeed.y /= _elem.parent.scale;
+          }
+        }
+
+        if (_bMouseLftBtnDn && _elem != null)
+        {
+          try
+          {
+            _ptLastMousePos.x = e.positionRoot.x;
+            _ptLastMousePos.y = e.positionRoot.y;
+
+            number dragOffsetX = (e.positionRoot.x - _ptMouseLftBtnDn.x) * dragMultiplier;
+            number dragOffsetY = (e.positionRoot.y - _ptMouseLftBtnDn.y) * dragMultiplier;
+            //----- Since we're using mouse positions relative to the root control for all our drag calculations,
+            //----- we need to adjust the drag offsets to take any scaling of parent controls into account.
+            if (_elem.parent != null) 
+            {
+              dragOffsetX /= _parentScaleAbs;
+              dragOffsetY /= _parentScaleAbs;
+              dragOffsetX *= _elem.root.scaleWidth;
+              dragOffsetY *= _elem.root.scaleHeight;
+            }
+
+            if (!_bDragging && dragOffsetX.abs() >= _dragTrigger || dragOffsetY.abs() >= _dragTrigger)
+            {
+              _bDragging = true;
+
+              //----- OK, now we've started dragging. 
+              //----- Mark the scaleAbs of the parent, so we can use it to modify the drag offset.
+              _parentScaleAbs = _elem.parent.scaleWidthAbs;
+            }
+
+            /*====================================================================*
+              START: Dragging
+             *====================================================================*/
+            //----- If we're not dragging, no need to continue.
+            if (!_bDragging) return;
+
+            //----- If tilt is turned on, take care of tilting stuff.
+            if (_bTiltOnXAxis || _bTiltOnYAxis)
+            {
+              _vDragPosition.x = e.positionRoot.x;
+              _vDragPosition.y = e.positionRoot.y;
+
+              //----- If this is the first time we're starting a drag,
+              //----- make sure the tilt chaser starts at the same point as the mouse,
+              //----- so there's no initial offset causing a jerky tilt at the beginning.
+              if (_bFirstTilt)
+              {
+                _vTiltChaserPosition.x = e.positionRoot.x;
+                _vTiltChaserPosition.y = e.positionRoot.y;
+                _bFirstTilt = false;
+              }
+            } 
+
+            number xTmp = (_ptDragStart.x + dragOffsetX);
+            number yTmp = (_ptDragStart.y + dragOffsetY);
+
+            if (!_bTargetXReached) _bTargetXReached = true;
+            if (!_bTargetYReached) _bTargetYReached = true;
+
+            //----- START: Apply constraints
+            //----- X
+            number dragConstraintResistance = 0.25;
+            if (xTmp < _dragConstraintXMin) 
+            {
+              if (_bElasticX) xTmp = _dragConstraintXMin - ((xTmp.abs() - _dragConstraintXMin.abs()) * dragConstraintResistance);
+              else xTmp = _dragConstraintXMin;
+            }
+            else if (xTmp > _dragConstraintXMax) 
+            {
+              if (_bElasticX) xTmp = _dragConstraintXMax + ((xTmp.abs() - _dragConstraintXMax.abs()) * dragConstraintResistance);
+              else xTmp = _dragConstraintXMax;
+            }
+            //----- Y 
+            if (yTmp < _dragConstraintYMin) 
+            {
+              if (_bElasticY) yTmp = _dragConstraintYMin - ((yTmp.abs() - _dragConstraintYMin.abs()) * dragConstraintResistance);
+              else yTmp = _dragConstraintYMin;
+            }
+            else if (yTmp > _dragConstraintYMax) 
+            {
+              if (_bElasticY) yTmp = _dragConstraintYMax + ((yTmp.abs() - _dragConstraintYMax.abs()) * dragConstraintResistance);
+              else yTmp = _dragConstraintYMax;
+            }
+            //----- END: Apply constraints
+            _targetX = xTmp;
+            _targetY = yTmp;
+            _setX(_targetX);
+            _setY(_targetY);
+
+            _draggedEvent.signal(new ZoomDragEventArgs(this));
+          }
+          catch (e)
+          {
+            print("Error in ZoomDragManager.mouseMove: " + e);
+          }
+        }
+      }
+
+
+      void mouseWheel(MouseEventArgs e)
+      {
+        if (!_bEnabled) return;
+
+        number zoomFactor = 1.0;
+        if (e.wheelDelta > 0.0) zoomFactor = 1.5;
+        else zoomFactor = 0.5;
+
+        zoom(e.positionLocal, zoomFactor);
+      }
+
+
+      /*====================================================================*
+      START: Methods
+       *====================================================================*/
+      /// ptFocus is the position relative to the zoom control.
+      void zoom(Point ptFocus, [num zoomFactor])
+      {
+        if (!_bEnabled) return;
+
+        try
+        {
+          if (zoomFactor == null) zoomFactor = 1.5;
+
+          //----- Get the focal position relative to _elem.
+          Point ptFinal = new Point(ptFocus.x, ptFocus.y);
+
+          if (_zoomType == ZoomType.SCALE)
+          {
+            //----- Set the scale
+            _startScale = _elem.scaleWidth;
+            number finalScale = _startScale * zoomFactor;
+
+            //----- Make sure _elem doesn't get bigger than the drag constraints will allow.
+            //----- Set the target scale.
+            number prevScale = _targetScale;
+            _targetScale = this.constrainScale(finalScale);
+
+            //----- Get the scaled mouse position.
+            Point ptRelative = new Point((ptFocus.x - _elem.x) / _startScale, (ptFocus.y - _elem.y) / _startScale);
+            Point ptScaled = new Point(ptRelative.x * _targetScale, ptRelative.y * _targetScale);
+
+            //----- Now we can find the final position for _elem.
+            ptFinal = new Point(ptFocus.x - ptScaled.x, ptFocus.y - ptScaled.y);
+
+            //----- Now constrain the position, based on any updated constraints.
+            /*if (_targetScale > prevScale)
+            {
+              _targetX = ptFinal.x;
+              _targetY = ptFinal.y;
+            }
+            else
+            {*/
+              _targetX = this.constrainX(ptFinal.x, true);
+              _targetY = this.constrainY(ptFinal.y, true);
+            //}
+
+            _bTargetXReached = false;
+            _bTargetYReached = false;
+            _bTargetScaleReached = false;
+
+            _zoomedEvent.signal(new ZoomDragEventArgs(this));
+            _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+          }
+          else if (_zoomType == ZoomType.STRETCH_HORIZONTALLY || _zoomType == ZoomType.STRETCH_VERTICALLY || _zoomType == ZoomType.STRETCH_BOTH)
+          {
+            //----- Set the stretch factor
+            _startStretchWidthFactor = _currentStretchWidthFactor;
+            number finalStretchWidthFactor = _startStretchWidthFactor;
+            _startStretchHeightFactor = _currentStretchHeightFactor;
+            number finalStretchHeightFactor = _startStretchHeightFactor;
+
+            number stretchWidthBy = 1.0;
+            number stretchHeightBy = 1.0;
+            if (zoomFactor > 1.0)
+            {
+              if (_zoomType == ZoomType.STRETCH_HORIZONTALLY  || _zoomType == ZoomType.STRETCH_BOTH) stretchWidthBy = zoomFactor;
+              if (_zoomType == ZoomType.STRETCH_VERTICALLY  || _zoomType == ZoomType.STRETCH_BOTH) stretchHeightBy = zoomFactor;
+            }
+            else
+            {
+              if (_zoomType == ZoomType.STRETCH_HORIZONTALLY  || _zoomType == ZoomType.STRETCH_BOTH) stretchWidthBy = zoomFactor;
+              if (_zoomType == ZoomType.STRETCH_VERTICALLY  || _zoomType == ZoomType.STRETCH_BOTH) stretchHeightBy = zoomFactor;
+            }
+
+            finalStretchWidthFactor *= stretchWidthBy;
+            finalStretchHeightFactor *= stretchHeightBy;
+
+            //----- Make sure _elem doesn't get bigger than the drag constraints will allow.
+            finalStretchWidthFactor = this.constrainScale(finalStretchWidthFactor);
+            finalStretchHeightFactor = this.constrainScale(finalStretchHeightFactor);
+
+            Point ptRelative = new Point((ptFocus.x - _elem.x) / _startStretchWidthFactor, (ptFocus.y - _elem.y) / _startStretchHeightFactor);
+
+            //----- Get the scaled mouse position.
+            Point ptScaled = new Point(ptRelative.x * finalStretchWidthFactor, ptRelative.y * finalStretchHeightFactor);
+
+            //----- Now we can find the final position for _elem.
+            if (_zoomType == ZoomType.STRETCH_HORIZONTALLY) 
+            {
+              ptFinal.x = this.constrainX(ptFocus.x - ptScaled.x);
+              ptFinal.y = _elem.y;
+            }
+            else if (_zoomType == ZoomType.STRETCH_VERTICALLY) 
+            {
+              ptFinal.x = _elem.x;
+              ptFinal.y = this.constrainX(ptFocus.y - ptScaled.y);
+            }
+            else if (_zoomType == ZoomType.STRETCH_BOTH) 
+            {
+              ptFinal.x = this.constrainX(ptFocus.x - ptScaled.x);
+              ptFinal.y = this.constrainX(ptFocus.y - ptScaled.y);
+            }
+
+            //----- Set the target stretch factor.
+            _targetStretchWidthFactor = finalStretchWidthFactor;
+            _targetStretchHeightFactor = finalStretchHeightFactor;
+
+            _targetX = this.constrainX(ptFinal.x);
+            _targetY = this.constrainY(ptFinal.y);
+
+            _bTargetXReached = false;
+            _bTargetYReached = false;
+
+            _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+            _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+          }
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.mouseWheel: " + e);
+        }
+      }
+
+
+      number constrainX(num x, [bool bIgnoreElastic])
+      {
+        if (!_bConstrained) return x;
+
+        if (bIgnoreElastic == null) bIgnoreElastic = false;
+
+        if (isKeepWithinParentControlX) _keepWithinParentControlX();
+
+        if (x < _dragConstraintXMin) 
+        {
+          if (_bElasticX && !bIgnoreElastic)
+          {
+            //----- We're to the left of the right constraint and we need to get back to it smoothly.
+            //----- First stop moving.
+            _ptSpeed.x = 0.0;
+            _ptDragSpeed.x = 0.0;
+
+            _elastic.leader.x = _dragConstraintXMin;
+            _elastic.chaser.x = _elem.x;
+            _elastic.isEnabled = true;
+          }
+          else x = _dragConstraintXMin;
+        }
+        else if (x > _dragConstraintXMax) 
+        {
+          if (_bElasticX && !bIgnoreElastic)
+          {
+            //----- We're to the right the left constraint and we need to get back to it smoothly.
+            //----- First stop moving.
+            _ptSpeed.x = 0.0;
+            _ptDragSpeed.x = 0.0;
+
+            _elastic.leader.x = _dragConstraintXMax;
+            _elastic.chaser.x = _elem.x;
+            _elastic.isEnabled = true;
+          }
+          else x = _dragConstraintXMax;
+        }
+
+        return x;
+      }
+      bool isKeepWithinParentControlX = false;
+      void _keepWithinParentControlX()
+      {
+        if(_elem.parent == null) return;
+        number width = _elem.width * _elem.scaleWidth;
+        if (_elem.scaleWidth < _targetScale) width = _elem.width * _targetScale;
+        _dragConstraintXMin = _elem.parent.width - width;   
+
+        _dragConstraintXMax = 0;
+      }
+
+
+      number constrainY(num y, [bool bIgnoreElastic])
+      {
+        if (!_bConstrained) return y;
+
+        if (bIgnoreElastic == null) bIgnoreElastic = false;
+
+        if (isKeepWithinParentControlY) _keepWithinParentControlY();
+
+        if (y < _dragConstraintYMin) 
+        {
+          if (_bElasticY && !bIgnoreElastic)
+          {
+            //----- We're above the bottom constraint and we need to get back to it smoothly.
+            //----- First stop moving.
+            _ptSpeed.y = 0.0;
+            _ptDragSpeed.y = 0.0;
+
+            _elastic.leader.y = _dragConstraintYMin;
+            _elastic.chaser.y = _elem.y;
+            _elastic.isEnabled = true;
+          }
+          else y = _dragConstraintYMin;
+        }
+        else if (y > _dragConstraintYMax) 
+        {
+          if (_bElasticY && !bIgnoreElastic)
+          {
+            //----- We're below the top constraint and we need to get back to it smoothly.
+            //----- First stop moving.
+            _ptSpeed.y = 0.0;
+            _ptDragSpeed.y = 0.0;
+
+            _elastic.leader.y = _dragConstraintYMax;
+            _elastic.chaser.y = _elem.y;
+            _elastic.isEnabled = true;
+          }
+          else y = _dragConstraintYMax;
+        }
+
+        return y;
+      }
+      bool isKeepWithinParentControlY = false;
+      void _keepWithinParentControlY()
+      {
+        if(_elem.parent == null) return;
+        number height = _elem.height * _elem.scaleHeight;
+        if (_elem.scaleHeight < _targetScale) height = _elem.height * _targetScale;
+        _dragConstraintYMin = _elem.parent.height - height;   
+
+        _dragConstraintYMax = 0;
+      }
+
+
+      number constrainScale(num scale)
+      {
+        if (!_bConstrained) return scale;
+
+        number scaleTest = scale;
+
+        if (scaleTest < _scaleConstraintMin) scaleTest = _scaleConstraintMin;
+        if (scaleTest > _scaleConstraintMax) scaleTest = _scaleConstraintMax;
+
+        return scaleTest;
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update Scale
+      *--------------------------------------------------------------------*/
+      void _updateScale()
+      {
+        try
+        {
+          number value = _elem.scaleWidth;
+
+          //----- Save current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number diff = _targetScale - value;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (diff > 0.0)
+            {
+              value += (diff / (diff / speed)).abs();
+              if (value > _targetScale) value = _targetScale;
+            }
+            else if (diff < 0.0)
+            {
+              value -= (diff / (diff / speed)).abs();
+              if (value < _targetScale) value = _targetScale;
+            }
+
+            _setScale(value);
+          }
+          else 
+          {
+            _setScale(_targetScale);
+            _bTargetScaleReached = true;
+          }
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateScale: " + e.toString());
+        }
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update X
+      *--------------------------------------------------------------------*/
+      bool _bSignalDraggedEvent = false;
+      bool _bSignalDragDoneEvent = false;
+      void _updateX()
+      {
+        try
+        {
+          //----- Handle drag deceleration.
+          if (!_bDragging && _bTargetXReached && _elem != null)
+          { 
+            if (_bDragDone || _ptDragSpeed.x != 0.0 || _ptSpeed.x != 0.0)
+            { //----- We must be decelerating after a drag, otherwise speed and drag speed would be 0.
+              //----- _bDragDone is true immediately after a drag, even if the speed is 0.
+              if (_bUseDeceleration )
+              {
+                number tolerance = 1.0;
+
+                if (_ptSpeed.x.abs() > tolerance) _ptSpeed.x *= _deceleration;
+                else _ptSpeed.x = 0.0;
+
+                if (_ptDragSpeed.x.abs() > tolerance) _ptDragSpeed.x *= _deceleration;
+                else _ptDragSpeed.x = 0.0;
+
+                _bSignalDraggedEvent = true;
+                _bSignalDragDoneEvent = true;
+              }
+              else
+              {
+                _ptSpeed.x = 0.0;
+                _ptDragSpeed.x = 0.0;
+              }
+
+              number xTmp = _elem.x + _ptSpeed.x;
+
+              //----- Update _targetX to reflect the actual position of the control.
+              _targetX = this.constrainX(xTmp);
+              _setX(_targetX);
+            }
+            else
+            { //----- We didn't just finish a drag and we're not decelerating, but we may be trying to get back to constraints.
+              if (_bElasticX && _elastic.leader.x != _elastic.chaser.x)
+              { //----- Yep, looks like we're outside constraints and we need to get back smoothly.
+                _targetX = _elastic.chaser.x;
+                _setX(_targetX);
+              }
+            }
+          }
+          else
+          {
+            //----- We're not dragging and not decelerating, and we haven't reached our x target yet.
+            //----- Save the current values and use the saved values in calculations,
+            //----- so that things don't get messed up if the anchor point's not at (0, 0).
+            number value = _elem.x;
+            number diff = _targetX - value;
+
+            if (diff.abs() > _targetProximityPosition)
+            {
+              number velocity = 0.0;
+              number speed = (_speed * _speedFactor) * diff.abs();
+
+              if (speed != 0 && diff != 0) velocity = (diff / (diff / speed)).abs();
+              else velocity = diff.abs();
+
+              if (diff > 0.0) value += velocity;
+              else value -= velocity;
+
+              _setX(value);
+            }
+            else
+            {
+              _setX(_targetX);
+              _ptSpeed.x = 0.0;
+              _ptDragSpeed.x = 0.0;
+              _bTargetXReached = true;
+            }      
+          }
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateX: " + e.toString());
+        }
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update Y
+      *--------------------------------------------------------------------*/
+      void _updateY()
+      {
+        try
+        {
+          //----- Handle drag deceleration.
+          if (!_bDragging && _bTargetYReached && _elem != null)
+          { 
+            if (_bDragDone || _ptDragSpeed.y != 0.0 || _ptSpeed.y != 0.0)
+            {
+              //----- We must be decelerating after a drag, otherwise speed and drag speed would be 0.
+              //----- _bDragDone is true immediately after a drag, even if the speed is 0.
+              if (_bUseDeceleration )
+              {
+                number tolerance = 1.0;
+
+                if (_ptSpeed.y.abs() > tolerance) _ptSpeed.y *= _deceleration;
+                else _ptSpeed.y = 0.0;
+
+                if (_ptDragSpeed.y.abs() > tolerance) _ptDragSpeed.y *= _deceleration;
+                else _ptDragSpeed.y = 0.0;
+
+                _bSignalDraggedEvent = true;
+                _bSignalDragDoneEvent = true;
+              }
+              else
+              { //----- We're not using deceleration, so just stop.
+                _ptSpeed.y = 0.0;
+                _ptDragSpeed.y = 0.0;
+              }
+
+              number yTmp = _elem.y + _ptSpeed.y;
+
+              //----- Update _targetY to reflect the actual position of the control.
+              _targetY = this.constrainY(yTmp);
+              _setY(_targetY);
+            }
+            else
+            { //----- We didn't just finish a drag and we're not decelerating, but we may be trying to get back to constraints.
+              if (_bElasticY && _elastic.leader.y != _elastic.chaser.y)
+              { //----- Yep, looks like we're outside constraints and we need to get back smoothly.
+                _targetY = _elastic.chaser.y;
+                _setY(_targetY);
+              }
+            }
+          }
+          else
+          {
+            //----- We're not dragging and not decelerating, and we haven't reached our y target yet.
+            //----- Save the current values and use the saved values in calculations,
+            //----- so that things don't get messed up if the anchor point's not at (0, 0).
+            number value = _elem.y;
+            number diff = _targetY - value;
+
+            if (diff.abs() > _targetProximityPosition)
+            {
+              number velocityY = 0.0;
+              number speed = (_speed * _speedFactor) * diff.abs();
+
+              if (speed != 0.0 && diff != 0.0) velocityY = (diff / (diff / speed)).abs();
+              else velocityY = diff.abs();
+
+              if (diff > 0) value += velocityY;
+              else value -= velocityY;
+
+              _setY(value);
+            }
+            else
+            {
+              _setY(_targetY);
+              _ptSpeed.y = 0.0;
+              _ptDragSpeed.y = 0.0;
+              _bTargetYReached = true;
+            }
+          } 
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateY: " + e.toString());
+        }
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update Width
+      *--------------------------------------------------------------------*/
+      void _updateStretchWidth()
+      {
+        try
+        {
+          number value = _currentStretchWidthFactor;
+
+          //----- Save current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number diff = _targetStretchWidthFactor - value;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (diff > 0.0)
+            {
+              value += (diff / (diff / speed)).abs();
+              if (value > _targetStretchWidthFactor) value = _targetStretchWidthFactor;
+            }
+            else if (diff < 0.0)
+            {
+              value -= (diff / (diff / speed)).abs();
+              if (value < _targetStretchWidthFactor) value = _targetStretchWidthFactor;
+            }
+
+            _setWidth(_widthOriginal * value);
+            _currentStretchWidthFactor = value;
+
+            //----- Has the target been reached?
+            if ((value - _targetStretchWidthFactor).abs() <= _targetProximityScale) 
+            {
+              _setWidth(_widthOriginal * _targetStretchWidthFactor);
+              _currentStretchWidthFactor = _targetStretchWidthFactor;
+            }
+          }
+          else 
+          {
+            _setWidth(_widthOriginal * _targetStretchWidthFactor);
+            _currentStretchWidthFactor = _targetStretchWidthFactor;
+          }
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager._updateStretchWidth: " + e.toString());
+        }
+      }
+      /*void _updateStretchWidth()
+      {
+        try
+        {
+          //----- Save the X, Y and scale values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number stretchWidthFactor = _currentStretchWidthFactor;
+          number diffStretchWidthFactor = _targetStretchWidthFactor - stretchWidthFactor;
+          number speed = (_speed * _speedFactor) * diffStretchWidthFactor.abs();
+          number stretchWidthSpeed = (_speed * _speedFactor) * diffStretchWidthFactor.abs();
+          bool bTargetReached = false;
+
+          if ((stretchWidthFactor - _targetStretchWidthFactor).abs() > _targetProximityScale)
+          {
+            if (diffStretchWidthFactor > 0.0)
+            {
+              stretchWidthFactor += (diffStretchWidthFactor / (diffStretchWidthFactor / stretchWidthSpeed)).abs();
+              if (stretchWidthFactor > _targetStretchWidthFactor) stretchWidthFactor = _targetStretchWidthFactor;
+            }
+            else if (diffStretchWidthFactor < 0.0)
+            {
+              stretchWidthFactor -= (diffStretchWidthFactor / (diffStretchWidthFactor / stretchWidthSpeed)).abs();
+              if (stretchWidthFactor < _targetStretchWidthFactor) stretchWidthFactor = _targetStretchWidthFactor;
+            }
+
+            _currentStretchWidthFactor = stretchWidthFactor;
+
+            _setWidth(_widthOriginal * _currentStretchWidthFactor);
+
+            //----- Has the target width been reached?
+            if ((_currentStretchWidthFactor - _targetStretchWidthFactor).abs() <= _targetProximityScale) bTargetReached = this._stretchWidthTargetReached();
+          }
+          else
+          {
+            bTargetReached = this._stretchWidthTargetReached();
+          }
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateZoom: " + e.toString());
+        }
+      }
+      bool _stretchWidthTargetReached()
+      {
+        _currentStretchWidthFactor = _targetStretchWidthFactor;
+        _setWidth(_widthOriginal * _currentStretchWidthFactor);
+        return true;
+      }*/
+
+
+     /*--------------------------------------------------------------------*
+      START: Update Height
+      *--------------------------------------------------------------------*/
+      void _updateStretchHeight()
+      {
+        try
+        {
+          //----- Save the X, Y and scale values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number stretchHeightFactor = _currentStretchHeightFactor;
+          number diffStretchHeightFactor = _targetStretchHeightFactor - stretchHeightFactor;
+          number speed = (_speed * _speedFactor) * diffStretchHeightFactor.abs();
+          number stretchHeightSpeed = (_speed * _speedFactor) * diffStretchHeightFactor.abs();
+          bool bTargetReached = false;
+
+          if ((stretchHeightFactor - _targetStretchHeightFactor).abs() > _targetProximityScale)
+          {
+            if (diffStretchHeightFactor > 0.0)
+            {
+              stretchHeightFactor += (diffStretchHeightFactor / (diffStretchHeightFactor / stretchHeightSpeed)).abs();
+              if (stretchHeightFactor > _targetStretchHeightFactor) stretchHeightFactor = _targetStretchHeightFactor;
+            }
+            else if (diffStretchHeightFactor < 0.0)
+            {
+              stretchHeightFactor -= (diffStretchHeightFactor / (diffStretchHeightFactor / stretchHeightSpeed)).abs();
+              if (stretchHeightFactor < _targetStretchHeightFactor) stretchHeightFactor = _targetStretchHeightFactor;
+            }
+
+            _currentStretchHeightFactor = stretchHeightFactor;
+
+            _setHeight(_heightOriginal * _currentStretchHeightFactor);
+
+            //----- Has the target height been reached?
+            if ((_currentStretchHeightFactor - _targetStretchHeightFactor).abs() <= _targetProximityScale) bTargetReached = this._stretchHeightTargetReached();
+          }
+          else
+          {
+            bTargetReached = this._stretchHeightTargetReached();
+          } 
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateZoom: " + e.toString());
+        }
+      }
+      bool _stretchHeightTargetReached()
+      {
+        _currentStretchHeightFactor = _targetStretchHeightFactor;
+        _setHeight(_heightOriginal * _currentStretchHeightFactor);
+        return true;
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update RotationX
+      *--------------------------------------------------------------------*/
+      void _updateRotationX()
+      {
+        try
+        {
+          //----- Save the current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number value = _elem.rotationX;
+          number diff = _targetRotationX - value;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number velocity = 0.0;
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (speed != 0.0 && diff != 0.0) velocity = (diff / (diff / speed)).abs();
+            else velocity = diff.abs();
+
+            if (diff > 0.0) value += velocity;
+            else value -= velocity;
+
+            //----- Target reached.
+            if ((value - _targetRotationX).abs() <= _targetProximityScale) value = _targetRotationX;
+
+            if (!_bTiltOnXAxis) _setRotationX(value);
+          }
+          else if (!_bTiltOnXAxis) _setRotationX(_targetRotationX);
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateRotationX: " + e.toString());
+        }
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update RotationY
+      *--------------------------------------------------------------------*/
+      void _updateRotationY()
+      {
+        try
+        {
+          //----- Save the current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number value = _elem.rotationY;
+          number diff = _targetRotationY - value;
+          bool bTargetReached = false;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number velocity = 0.0;
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (speed != 0.0 && diff != 0.0) velocity = (diff / (diff / speed)).abs();
+            else velocity = diff.abs();
+
+            if (diff > 0.0) value += velocity;
+            else value -= velocity;
+
+            //----- Target reached.
+            if ((value - _targetRotationY).abs() <= _targetProximityScale) value = _targetRotationY;
+
+            if (!_bTiltOnYAxis) _setRotationY(value);
+          }
+          else if (!_bTiltOnYAxis) _setRotationY(_targetRotationY);
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateRotationY: " + e.toString());
+        }
+      }
+
+
+     /*--------------------------------------------------------------------*
+      START: Update RotationZ
+      *--------------------------------------------------------------------*/
+      void _updateRotationZ()
+      {
+        try
+        {
+          //----- Save the current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number value = _elem.rotationZ;
+          number diff = _targetRotationZ - value;
+          bool bTargetReached = false;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number velocity = 0.0;
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (speed != 0.0 && diff != 0.0) velocity = (diff / (diff / speed)).abs();
+            else velocity = diff.abs();
+
+            if (diff > 0.0) value += velocity;
+            else value -= velocity;
+
+            //----- Target reached.
+            if ((value - _targetRotationZ).abs() <= _targetProximityScale) value = _targetRotationZ;
+
+            _setRotationZ(value);
+          }
+          else _setRotationY(_targetRotationZ);
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateRotationY: " + e.toString());
+        }
+      }
+
+
+      /*--------------------------------------------------------------------*
+      START: Update width
+      *--------------------------------------------------------------------*/
+      void _updateWidth()
+      {
+        try
+        {
+          //----- Save the current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number value = _elem.width;
+          number diff = _targetWidth - value;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number velocity = 0.0;
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (speed != 0.0 && diff != 0.0) velocity = (diff / (diff / speed)).abs();
+            else velocity = diff.abs();
+
+            if (diff > 0.0) value += velocity;
+            else value -= velocity;
+
+            //----- Target reached.
+            if ((value - _targetWidth).abs() <= _targetProximityScale) 
+            {
+               value = _targetWidth;
+               _bTargetWidthReached = true;
+            }
+
+            _setWidth(value);
+          }
+          else 
+          {
+            _setWidth(_targetWidth);
+          }
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateWidth: " + e.toString());
+        }
+      }
+
+
+      /*--------------------------------------------------------------------*
+      START: Update height
+      *--------------------------------------------------------------------*/
+      void _updateHeight()
+      {
+        try
+        {
+          //----- Save the current values and use the saved values in calculations,
+          //----- so that things don't get messed up if the anchor point's not at (0, 0).
+          number value = _elem.height;
+          number diff = _targetHeight - value;
+
+          if (diff.abs() > _targetProximityScale)
+          {
+            number velocity = 0.0;
+            number speed = (_speed * _speedFactor) * diff.abs();
+
+            if (speed != 0.0 && diff != 0.0) velocity = (diff / (diff / speed)).abs();
+            else velocity = diff.abs();
+
+            if (diff > 0.0) value += velocity;
+            else value -= velocity;
+
+            //----- Target reached.
+            if ((value - _targetHeight).abs() <= _targetProximityScale) 
+            {
+              value = _targetHeight;
+              _bTargetHeightReached = true;
+            }
+
+            _setHeight(value);
+          }
+          else _setHeight(_targetHeight);
+        }
+        catch (e)
+        {
+          print("Error in ZoomDragManager.updateHeight: " + e.toString());
+        }
+      }
+
+
+      void goToTarget(num x, number y, number scale, number speedFactor, bool bUseDeceleration, bool bInstant, [num rotationX, number rotationY, number rotationZ])
+      {
+        _startScale = _elem.scaleWidth;
+
+        _targetScale = this.constrainScale(scale);
+        _targetX = this.constrainX(x);
+        _targetY = this.constrainY(y);
+        if (!bInstant) _speedFactor = speedFactor;
+        _bUseDeceleration = bUseDeceleration;
+
+        if (rotationX != null) _targetRotationX = rotationX;
+        if (rotationY != null) _targetRotationY = rotationY;
+        if (rotationZ != null) _targetRotationZ = rotationZ;
+
+        _elem.z = 0.0;
+
+        _targetScaleChangedEvent.signal(new ZoomDragEventArgs(this));
+        _targetXChangedEvent.signal(new ZoomDragEventArgs(this));
+        _targetYChangedEvent.signal(new ZoomDragEventArgs(this));
+
+        if (bInstant)
+        {
+          _bTargetXReached = true;
+          _bTargetYReached = true;
+          _bTargetScaleReached = true;
+
+          _setScale(_targetScale);
+          _setX(_targetX);
+          _setY(_targetY);
+
+          if (rotationX != null) _setRotationX(rotationX);
+          if (rotationY != null) _setRotationY(rotationY);
+          if (rotationZ != null) _setRotationZ(rotationZ);
+
+          this._targetsReachedEvent.signal(new ZoomDragEventArgs(this));
+        }
+        else 
+        {
+          _bTargetXReached = false;
+          _bTargetYReached = false;
+          _bTargetScaleReached = false;
+        }
+      }
+
+
+      /*====================================================================*
+        START: Tilt Methods
+       *====================================================================*/
+      bool _bFirstTilt = true;
+      Vector3 _vTiltSpeed = new Vector3(0, 0, 0);
+      Vector3 _vDragPosition = new Vector3(0, 0, 0);
+      Vector3 _vTiltChaserPosition = new Vector3(0, 0, 0);
+      number _TILT_CHASER_SPEED = 30;
+      number _MAX_TILT_SPEED = 2000;
+      number _MAX_TILT_ANGLE = 20;
+      number _TILT_FACTOR = 1.0;
+      bool _bTiltChangeZ = false;
+
+      Control _ctlTiltDrag = new Control();
+      Control _ctlTiltChaser = new Control();
+      void _tiltDebug(ControlEventArgs args)
+      {
+        if (_elem == null || _elem.parent == null) return;
+
+        _ctlTiltDrag.width = 6;
+        _ctlTiltDrag.height = 6;
+        _ctlTiltDrag.style.background.color = new Color(0, 0, 0);
+        _ctlTiltDrag.isAllowMouseEvents = false;
+        _ctlTiltChaser.width = 6;
+        _ctlTiltChaser.height = 6;
+        _ctlTiltChaser.isAllowMouseEvents = false;
+        _ctlTiltChaser.style.background.color = new Color(255, 0, 0);
+        _elem.parent.controls.insert(_elem.parent.controls.length, _ctlTiltDrag);
+        _elem.parent.controls.insert(_elem.parent.controls.length, _ctlTiltChaser);
+      }
+      void _startDragPositionUpdating(num mouseX, number mouseY)
+      {
+        Vector3 chaserOffset = _vTiltChaserPosition - _vDragPosition;
+
+        _vDragPosition.x = mouseX;
+        _vDragPosition.y = mouseY;
+
+        _vTiltChaserPosition = _vDragPosition + chaserOffset;
+
+        if (_ctlTiltDrag != null && _ctlTiltChaser != null)
+        {
+          _ctlTiltDrag.x = _vDragPosition.x;
+          _ctlTiltDrag.y = _vDragPosition.y;
+          _ctlTiltChaser.x = _vTiltChaserPosition.x;
+          _ctlTiltChaser.y = _vTiltChaserPosition.y;
+        }
+      }
+      void _updateTiltSpeed()
+      {
+        Vector3 vDiff = _vDragPosition - _vTiltChaserPosition;
+        Vector3 vDirection = new Vector3(vDiff.x, vDiff.y, vDiff.z);
+        vDirection.normalize();
+        vDiff.abs();
+        _vTiltChaserPosition.x += vDirection.x * _TILT_CHASER_SPEED;
+        _vTiltChaserPosition.y += vDirection.y * _TILT_CHASER_SPEED;
+
+        if (vDiff.x > _MAX_TILT_SPEED / _TILT_FACTOR)
+        {
+          vDiff.x = _MAX_TILT_SPEED / _TILT_FACTOR;
+          _vTiltChaserPosition.x = _vDragPosition.x - ((_MAX_TILT_SPEED / _TILT_FACTOR) * vDirection.x);
+        }
+        else if (vDiff.x < _TILT_CHASER_SPEED) _vTiltChaserPosition.x = _vDragPosition.x;
+
+        if (vDiff.y > _MAX_TILT_SPEED / _TILT_FACTOR)
+        {
+          vDiff.y = _MAX_TILT_SPEED / _TILT_FACTOR;
+          _vTiltChaserPosition.y = _vDragPosition.y - ((_MAX_TILT_SPEED / _TILT_FACTOR) * vDirection.y);
+        }
+        else if (vDiff.y < _TILT_CHASER_SPEED) _vTiltChaserPosition.y = _vDragPosition.y;
+
+        if (_ctlTiltDrag != null && _ctlTiltChaser != null)
+        {
+          _ctlTiltDrag.x = _vDragPosition.x;
+          _ctlTiltDrag.y = _vDragPosition.y;
+          _ctlTiltChaser.x = _vTiltChaserPosition.x;
+          _ctlTiltChaser.y = _vTiltChaserPosition.y;
+          if (_vTiltChaserPosition.x != _vDragPosition.x && _vTiltChaserPosition.y != _vDragPosition.y) _ctlTiltChaser.rotation = math.atan2((_vTiltChaserPosition.y - _vDragPosition.y), (_vTiltChaserPosition.x - _vDragPosition.x)) / (math.PI / 180) - 90;
+        }
+
+        _vTiltSpeed = new Vector3(vDiff.x * vDirection.x * _TILT_FACTOR, vDiff.y * vDirection.y * _TILT_FACTOR);
+      }
+
+
+      void _applyTilt()
+      {
+        if (!_bTargetsReached) 
+        {
+          if (_vTiltSpeed.x == 0 && _vTiltSpeed.y == 0) return;
+
+          _vTiltChaserPosition.x = _vDragPosition.x;
+          _vTiltChaserPosition.y = _vDragPosition.y;
+          _vTiltSpeed.x = 0;
+          _vTiltSpeed.y = 0;
+
+          //return;
+        }
+
+        //----- 3D tilt functionality
+        if (_bTiltOnYAxis)
+        {
+          if (_vTiltSpeed.x == 0)
+          {
+            if (!_bTiltChangeZ && _elem.z != 0) _elem.z = 0;
+            _elem.anchorPoint.x = 0;
+          }
+
+          number tiltSpeed = _vTiltSpeed.x;
+          int sign = -1;
+          if (tiltSpeed < 1) sign = 1;
+          tiltSpeed = tiltSpeed.abs();
+          number rotation = (tiltSpeed / (_MAX_TILT_SPEED / _MAX_TILT_ANGLE));
+          if (rotation > _MAX_TILT_ANGLE) rotation = _MAX_TILT_ANGLE;
+          rotation *= sign;
+          number z = rotation.abs() * -20;
+          //num scale = 1.0 - (0.4 * (Math.Abs(rotation) / _MAX_TILT_ANGLE));
+
+          if (rotation < 0) 
+          {
+            _elem.anchorPoint.x = 0;
+
+            if (_elem.left < 0) 
+            {
+              //----- Move the anchor point to the left side of the clip panel.
+              _elem.anchorPoint.x = _elem.left.abs() / _elem.widthActual;
+            }
+          }
+          else 
+          {
+            _elem.anchorPoint.x = 1;
+
+            if (_elem.parent != null && _elem.left + _elem.widthActual > _elem.parent.widthActual)
+            {
+              //----- Move the anchor point to the right side of the clip panel.
+              _elem.anchorPoint.x = 1 - (((_elem.left + _elem.widthActual) - _elem.parent.widthActual) / _elem.widthActual);
+            }
+          }
+
+          _elem.rotationY = _elem.rotationY + rotation;
+          if (_bTiltChangeZ) _elem.z = z;
+        }
+        else
+        {
+          _vTiltSpeed.x = 0;
+          if (!_bTiltChangeZ) _elem.z = 0;
+          _elem.anchorPoint.x = 0;
+        }
+
+        if (_bTiltOnXAxis)
+        {
+          if (_vTiltSpeed.y == 0)
+          {
+            if (_elem.rotationX != _targetRotationX) _elem.rotationX = _targetRotationX;
+            if (!_bTiltChangeZ && _elem.z != 0) _elem.z = 0;
+            _elem.anchorPoint.y = 0;
+          }
+
+          number tiltSpeed = _vTiltSpeed.y;
+          int sign = -1;
+          if (tiltSpeed < 1) sign = 1;
+          tiltSpeed = tiltSpeed.abs();
+          number rotation = (tiltSpeed / (_MAX_TILT_SPEED / _MAX_TILT_ANGLE));
+          if (rotation > _MAX_TILT_ANGLE) rotation = _MAX_TILT_ANGLE;
+          rotation *= sign;
+          number z = rotation.abs() * -20;
+
+          if (rotation < 0) 
+          {
+            _elem.anchorPoint.y = 0;
+
+            if (_elem.top < 0) 
+            {
+              //----- Move the anchor point to the top of the clip panel.
+              _elem.anchorPoint.y = _elem.top.abs() / _elem.heightActual;
+            }
+          }
+          else 
+          {
+            _elem.anchorPoint.y = 1;
+
+            if (_elem.parent != null && _elem.top + _elem.heightActual > _elem.parent.heightActual)
+            {
+              //----- Move the anchor point to the bottom of the clip panel.
+              _elem.anchorPoint.y = 1 - (((_elem.top + _elem.heightActual) - _elem.parent.heightActual) / _elem.heightActual);
+            }
+          }
+
+          _elem.rotationX = _elem.rotationX + rotation;
+          if (_bTiltChangeZ) _elem.z = z;
+        }
+        else
+        {
+          _vTiltSpeed.y = 0;
+          if (!_bTiltChangeZ) _elem.z = 0;
+          _elem.anchorPoint.y = 0;
+        }
+      }
+    }
+}
